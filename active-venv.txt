@@ -1,0 +1,1 @@
+D:\python-env\code-data\venv\Scripts\Activate.ps1

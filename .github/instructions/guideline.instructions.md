@@ -1,0 +1,3 @@
+- Document code directly in the codebase using JSDoc comments. This allows for better maintainability and easier understanding of the code for future developers. Use clear and concise language to describe the purpose of functions, parameters, and return values. Additionally, include examples where necessary to illustrate how to use the functions effectively.
+- Keep the documentation up to date with any changes made to the code to ensure it remains accurate and useful.
+- Avoid duplicating documentation in separate files, as this can lead to inconsistencies and confusion. Instead, focus on maintaining comprehensive and well-structured JSDoc comments within the code itself. And keep the doc short bot AI can understand it easily.

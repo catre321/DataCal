@@ -1,0 +1,22 @@
+# Python
+venv/
+.env
+*.pyc
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Data files (large)
+*.csv
+*.xlsx
+*.parquet
+*.feather
