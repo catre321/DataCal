@@ -127,7 +127,7 @@ def _compute_row_formula_parallel(df, formula_expr, id_col, time_col=None):
         groups_list = list(df.groupby(id_col, sort=False))
         
         # Determine number of workers
-        num_workers = os.cpu_count()
+        num_workers = os.cpu_count() or 4
         
         # Use partial to create worker function
         worker_func = partial(_compute_group_chunk, formula_expr=formula_expr, id_col=id_col, time_col=time_col)
@@ -142,7 +142,7 @@ def _compute_row_formula_parallel(df, formula_expr, id_col, time_col=None):
                 results_dict[idx] = result
     else:
         # No grouping - process in parallel chunks
-        num_workers = os.cpu_count()
+        num_workers = os.cpu_count() or 4
         chunk_size = max(1, len(df) // num_workers)
         
         # Create index ranges for chunks
@@ -173,7 +173,7 @@ def _compute_eval_formula_parallel(df, expr):
     
     Auto-chunks data based on CPU cores for optimal parallel performance.
     """
-    num_workers = os.cpu_count()
+    num_workers = os.cpu_count() or 4
     
     # Edge case: fewer rows than cores
     if len(df) < num_workers:
@@ -251,12 +251,16 @@ def _evaluate_single_row(formula_expr, df, row_idx, id_col=None, time_col=None):
     Handles optional spaces before parentheses: Column(x) or Column (x).
 
     Supported functions:
-        - Math: log(), log10(), log2(), exp(), sqrt(), sin(), cos(), tan(), pow()
-        - Utility: abs(), round(), IF()
+        - Conditional: IF(condition, value_true, value_false)
+        - Math: log(x), log10(x), log2(x), exp(x), sqrt(x), sin(x), cos(x), tan(x), pow(x, y)
+        - Utility: abs(x), round(x)
         - Operators: +, -, *, /, ** (exponentiation)
 
-    Example: IF(A(x+1) == A(x), B(x), 0)
-    Complex: log(Revenue(x)) ** 2 + sqrt(Cost(x))
+    Examples:
+        - IF(A(x+1) == A(x), B(x), 0)
+        - log(Revenue(x)) ** 2 + sqrt(Cost(x))
+        - round(abs(Profit(x-1)) / Revenue(x), 2)
+        - IF(exp(GrowthRate(x)) > 1.5, sin(Price(x)) + cos(Price(x+1)), 0)
 
     Args:
         formula_expr: Formula string like "IF(A(x+1) == A(x), B(x), 0)"

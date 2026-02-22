@@ -68,8 +68,11 @@ class VariableGenerator:
         tk.Label(frame_main, text="• Math: log(Revenue(x)) ** 2, sqrt(Cost(x)), exp(Rate(x))", fg="gray").grid(
             row=6, column=0, columnspan=4, sticky='w', padx=20,
         )
-        tk.Label(frame_main, text="• Functions: abs(), round(), sin(), cos(), log(), log10(), log2()", fg="gray").grid(
+        tk.Label(frame_main, text="• Util: abs(), round() | Log: log(), log10(), log2() | Exp: exp()", fg="gray").grid(
             row=7, column=0, columnspan=4, sticky='w', padx=20,
+        )
+        tk.Label(frame_main, text="• Trig: sin(), cos(), tan(), pow(x,y) | Conditional: IF(cond, true, false)", fg="gray").grid(
+            row=8, column=0, columnspan=4, sticky='w', padx=20,
         )
         # Mean checkbox
         self.var_mean = tk.BooleanVar(value=False)
@@ -78,7 +81,7 @@ class VariableGenerator:
             text="Tính trung bình theo nhóm (Mean)",
             variable=self.var_mean,
             command=self._toggle_mean,
-        ).grid(row=8, column=0, columnspan=4, pady=10, sticky='w')
+        ).grid(row=9, column=0, columnspan=4, pady=10, sticky='w')
 
         # Add variable button
         ttk.Button(self.root, text="Thêm biến", command=self._add_variable).pack(pady=15)
