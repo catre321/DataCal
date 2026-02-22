@@ -20,3 +20,9 @@ __pycache__/
 *.xlsx
 *.parquet
 *.feather
+
+# Build and distribution
+build/
+main.spec
+main.build/
+main.dist/
