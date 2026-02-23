@@ -16,6 +16,7 @@ def compute_variables(df, formulas, id_col, time_col, progress_callback=None):
         - Row-by-row formulas using Column(x) syntax
         - Pandas eval expressions (regular Excel-like formulas)
         - Parallel computation with automatic chunking
+        - Chaining: variables computed in order, later vars can reference earlier ones
 
     Args:
         df: pandas DataFrame (original, not modified).
@@ -29,6 +30,7 @@ def compute_variables(df, formulas, id_col, time_col, progress_callback=None):
     """
     result_df = df[[id_col, time_col]].copy()
     total_formulas = len(formulas)
+    computed_vars = []  # Track names of computed variables
 
     for idx, f in enumerate(formulas):
         formula_name = f['name']
@@ -37,32 +39,53 @@ def compute_variables(df, formulas, id_col, time_col, progress_callback=None):
         if progress_callback:
             progress_callback(idx + 1, total_formulas, formula_name)
         
+        # Create context: original columns + previously computed variables
+        context_df = df.copy()
+        for var_name in computed_vars:
+            context_df[var_name] = result_df[var_name]
+        
+        # Resolve mean type — also detect by expression pattern as fallback
+        # (handles edge case where formula dict was re-created without the type field)
+        if f.get('type') != 'mean':
+            m = re.match(r'^\s*mean\s*\((.+?)\)\s*by\s*(.+)$', f.get('expression', ''))
+            if m:
+                print(f"[WARN] Formula '{formula_name}' missing type field; detected as mean from expression.")
+                f = dict(f, type='mean',
+                         mean_var=m.group(1).strip(),
+                         mean_groups=[g.strip() for g in m.group(2).split(',')])
+
         if f.get('type') == 'mean':
-            result_df[formula_name] = _compute_mean(df, f, time_col)
+            result_df[formula_name] = _compute_mean(context_df, f, time_col)
         elif _is_row_formula(f['expression']):
             # Row-by-row formula with Column(x) syntax (parallel groups)
             result_df[formula_name] = _compute_row_formula_parallel(
-                df, f['expression'], id_col, time_col
+                context_df, f['expression'], id_col, time_col
             )
         else:
             # Regular pandas eval expression (parallel chunks)
             expr = f['expression']
             result_df[formula_name] = _compute_eval_formula_parallel(
-                df, expr
+                context_df, expr
             )
+        
+        computed_vars.append(formula_name)
 
     return result_df
 
 
 def _compute_mean(df, formula, time_col):
-    """Compute a grouped mean variable and return the result series."""
+    """
+    Compute a grouped mean variable and return the result series.
+
+    Groups are taken exactly as configured by the user (no automatic additions).
+    Rows whose group column contains NaN are still assigned a mean computed
+    from the non-NaN groups (dropna=False).
+    """
     mean_var = formula['mean_var']
     groups = formula['mean_groups']
 
-    if time_col not in groups:
-        groups = groups + [time_col]
-
-    return df.groupby(groups)[mean_var].transform('mean')
+    print(f"[MEAN] Computing mean({mean_var}) grouped by {groups}")
+    return df.groupby(groups, dropna=False)[mean_var].transform('mean')
 
 
 def _is_row_formula(expr):

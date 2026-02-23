@@ -1,5 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox, scrolledtext
+from UIs.expression_builder import ExpressionBuilderDialog
+from UIs.mean_variable_dialog import MeanVariableDialog
 
 
 class VariableGenerator:
@@ -74,20 +76,19 @@ class VariableGenerator:
         tk.Label(frame_main, text="• Trig: sin(), cos(), tan(), pow(x,y) | Conditional: IF(cond, true, false)", fg="gray").grid(
             row=8, column=0, columnspan=4, sticky='w', padx=20,
         )
-        # Mean checkbox
-        self.var_mean = tk.BooleanVar(value=False)
-        tk.Checkbutton(
-            frame_main,
-            text="Tính trung bình theo nhóm (Mean)",
-            variable=self.var_mean,
-            command=self._toggle_mean,
-        ).grid(row=9, column=0, columnspan=4, pady=10, sticky='w')
+        # Action buttons row
+        action_frame = ttk.Frame(self.root)
+        action_frame.pack(pady=15)
+        ttk.Button(action_frame, text="Thêm biến", command=self._add_variable).pack(side='left', padx=10)
+        ttk.Button(action_frame, text="Add Mean Variable...", command=self._open_mean_dialog).pack(side='left', padx=10)
 
-        # Add variable button
-        ttk.Button(self.root, text="Thêm biến", command=self._add_variable).pack(pady=15)
+        # Created variables section
+        tk.Label(self.root, text="Các biến đã tạo (Available for chaining):", font=("Arial", 10, "bold")).pack(pady=(10, 5))
+        self.created_vars_text = tk.Label(self.root, text="(None yet)", fg="gray", wraplength=700)
+        self.created_vars_text.pack(pady=5)
 
         # Formula list
-        tk.Label(self.root, text="Danh sách biến đã thêm:").pack()
+        tk.Label(self.root, text="Danh sách biến đã thêm:").pack(pady=(10, 5))
         self.formula_list = tk.Listbox(self.root, height=12, width=100)
         self.formula_list.pack(pady=10, padx=10)
 
@@ -115,9 +116,21 @@ class VariableGenerator:
 
         self.model.formulas.append({'name': name, 'expression': expr})
         self.formula_list.insert(tk.END, f"{name} = {expr}")
+        
+        # Update created variables display
+        self._update_created_vars_display()
 
         self.entry_name.delete(0, tk.END)
         self.entry_expression.delete("1.0", tk.END)
+
+    def _update_created_vars_display(self):
+        """Update the display of created variables."""
+        created_names = [f['name'] for f in self.model.formulas]
+        if created_names:
+            display_text = ", ".join(created_names)
+            self.created_vars_text.config(text=display_text, fg="black")
+        else:
+            self.created_vars_text.config(text="(None yet)", fg="gray")
 
     def _edit_variable(self):
         """Edit selected variable from list."""
@@ -128,18 +141,46 @@ class VariableGenerator:
             return
 
         formula = self.model.formulas[idx]
-        
-        # Load formula into input fields
+
+        if formula.get('type') == 'mean':
+            # Remove and re-open mean dialog pre-filled; re-insert at same position on confirm
+            self.formula_list.delete(idx)
+            self.model.formulas.pop(idx)
+            self._update_created_vars_display()
+
+            def on_apply(name, mean_var, mean_groups):
+                expr = f"mean({mean_var}) by {', '.join(mean_groups)}"
+                new_formula = {
+                    'name': name,
+                    'expression': expr,
+                    'type': 'mean',
+                    'mean_var': mean_var,
+                    'mean_groups': mean_groups,
+                }
+                self.model.formulas.insert(idx, new_formula)
+                self.formula_list.insert(idx, f"{name} = {expr}")
+                self._update_created_vars_display()
+
+            MeanVariableDialog(
+                self.root,
+                self.model.available_vars,
+                self.model.id_col,
+                on_apply=on_apply,
+                initial_values=formula,
+            )
+            return
+
+        # Regular formula – load into text fields
         self.entry_name.delete(0, tk.END)
         self.entry_name.insert(0, formula['name'])
-        
+
         self.entry_expression.delete("1.0", tk.END)
         self.entry_expression.insert("1.0", formula['expression'])
-        
-        # Remove from list and model (will be re-added with "Thêm biến" button)
+
+        # Remove from list and model (re-added when user presses 'Thêm biến')
         self.formula_list.delete(idx)
         self.model.formulas.pop(idx)
-        
+
         messagebox.showinfo("Thông tin", "Công thức đã tải vào trường nhập liệu. Chỉnh sửa và nhấn 'Thêm biến' để cập nhật.")
 
     def _remove_variable(self):
@@ -160,134 +201,42 @@ class VariableGenerator:
         if confirm:
             self.formula_list.delete(idx)
             self.model.formulas.pop(idx)
+            self._update_created_vars_display()
             messagebox.showinfo("Thành công", f"Đã xóa biến '{formula_name}'.")
 
     # ── Mean ─────────────────────────────────────────────────
 
-    def _toggle_mean(self):
-        if self.var_mean.get():
-            self._open_mean_window()
+    def _open_mean_dialog(self):
+        def on_apply(name, mean_var, mean_groups):
+            expr = f"mean({mean_var}) by {', '.join(mean_groups)}"
+            self.model.formulas.append({
+                'name': name,
+                'expression': expr,
+                'type': 'mean',
+                'mean_var': mean_var,
+                'mean_groups': mean_groups,
+            })
+            self.formula_list.insert(tk.END, f"{name} = {expr}")
+            self._update_created_vars_display()
 
-    def _open_mean_window(self):
-        win = tk.Toplevel(self.root)
-        win.title("Tính trung bình theo nhóm")
-        win.geometry("600x500")
-
-        tk.Label(win, text="Chọn biến cần tính trung bình:").pack(pady=5)
-        mean_var_list = tk.Listbox(win, height=8, width=60)
-        for col in sorted(self.model.available_vars):
-            mean_var_list.insert(tk.END, col)
-        mean_var_list.pack(pady=5)
-
-        tk.Label(win, text="Chọn cột nhóm (nếu không chọn sẽ dùng ID chính):").pack(pady=5)
-        mean_group_list = tk.Listbox(win, selectmode="multiple", height=10, width=60)
-        for col in sorted(self.model.available_vars):
-            mean_group_list.insert(tk.END, col)
-        mean_group_list.pack(pady=5)
-
-        ttk.Button(
-            win,
-            text="Xác nhận thêm mean",
-            command=lambda: self._add_mean(win, mean_var_list, mean_group_list),
-        ).pack(pady=15)
-
-    def _add_mean(self, window, mean_var_list, mean_group_list):
-        try:
-            idx = mean_var_list.curselection()[0]
-            mean_var = mean_var_list.get(idx)
-        except IndexError:
-            messagebox.showwarning("Cảnh báo", "Vui lòng chọn 1 biến cần tính trung bình.")
-            return
-
-        mean_groups = [mean_group_list.get(i) for i in mean_group_list.curselection()]
-
-        if not mean_groups:
-            if not self.model.id_col:
-                messagebox.showwarning(
-                    "Cảnh báo",
-                    "Chưa có ID chính để dùng mặc định. Hãy chọn nhóm hoặc quay lại chọn ID.",
-                )
-                return
-            mean_groups = [self.model.id_col]
-
-        name = f"{mean_var}_mean"
-        expr = f"mean({mean_var}) by {', '.join(mean_groups)}"
-
-        self.model.formulas.append({
-            'name': name,
-            'expression': expr,
-            'type': 'mean',
-            'mean_var': mean_var,
-            'mean_groups': mean_groups,
-        })
-        self.formula_list.insert(tk.END, f"{name} = {expr}")
-        window.destroy()
+        MeanVariableDialog(
+            self.root,
+            self.model.available_vars,
+            self.model.id_col,
+            on_apply=on_apply,
+        )
 
     # ── Expression Builder ───────────────────────────────────
 
     def _open_expression_builder(self):
-        builder = tk.Toplevel(self.root)
-        builder.title("Expression Builder")
-        builder.geometry("700x500")
-
-        tk.Label(builder, text="Expression:").pack(pady=5)
-        builder_entry = ttk.Entry(builder, width=80)
-        builder_entry.pack(pady=5)
-
-        tk.Label(builder, text="Lọc biến theo file:").pack()
-        combo_filter = ttk.Combobox(builder, values=["All", "BS", "IS", "CF"])
-        combo_filter.set("All")
-        combo_filter.pack()
-
-        frame_vars = ttk.Frame(builder)
-        frame_vars.pack(side='left', padx=10, pady=10, fill='y')
-
-        tk.Label(frame_vars, text="Variables:").pack()
-        list_vars = tk.Listbox(frame_vars, height=20, width=30)
-        list_vars.pack()
-
-        def update_var_list(_event=None):
-            filter_val = combo_filter.get()
-            list_vars.delete(0, tk.END)
-            for col in sorted(self.model.available_vars):
-                source = self.model.column_sources.get(col, 'Unknown')
-                if filter_val == "All" or filter_val in source.split('/'):
-                    list_vars.insert(tk.END, col)
-
-        update_var_list()
-        combo_filter.bind("<<ComboboxSelected>>", update_var_list)
-
-        def insert_var(_event):
-            sel = list_vars.curselection()
-            if sel:
-                builder_entry.insert(tk.END, list_vars.get(sel[0]) + " ")
-
-        list_vars.bind("<<ListboxSelect>>", insert_var)
-
-        # Keypad
-        frame_keypad = ttk.Frame(builder)
-        frame_keypad.pack(side='right', padx=10)
-
-        buttons = [
-            '7', '8', '9', '/', '==',
-            '4', '5', '6', '*', '>',
-            '1', '2', '3', '-', '<',
-            '0', '.', '**', '+', '<=',
-            '(', ')', '!=', '&', '|',
-        ]
-        for i in range(0, len(buttons), 5):
-            row = ttk.Frame(frame_keypad)
-            row.pack()
-            for b in buttons[i:i + 5]:
-                ttk.Button(
-                    row, text=b, width=6,
-                    command=lambda x=b: builder_entry.insert(tk.END, x),
-                ).pack(side='left')
-
-        def apply():
-            expr = builder_entry.get().strip()
+        def on_apply(expr):
             self.entry_expression.delete("1.0", tk.END)
             self.entry_expression.insert("1.0", expr)
-            builder.destroy()
 
-        ttk.Button(builder, text="OK", command=apply).pack(pady=10)
+        ExpressionBuilderDialog(
+            self.root,
+            self.model.available_vars,
+            self.model.column_sources,
+            [f['name'] for f in self.model.formulas],
+            on_apply=on_apply,
+        )

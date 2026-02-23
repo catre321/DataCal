@@ -97,6 +97,9 @@ def merge_files_on_keys(dfs_by_type, id_col, time_col):
     """
     Merge all DataFrames on ID and time columns.
 
+    Duplicate columns (same name in multiple files) are resolved by keeping
+    the value from the first file that introduced the column (_x wins, _y dropped).
+
     Args:
         dfs_by_type: dict of DataFrames keyed by file type.
         id_col: primary ID column name.
@@ -116,21 +119,52 @@ def merge_files_on_keys(dfs_by_type, id_col, time_col):
 
     merged = dfs_list[0].copy()
     for df in dfs_list[1:]:
-        merged = merged.merge(df, on=merge_keys, how='outer')
+        merged = merged.merge(df, on=merge_keys, how='outer', suffixes=('', '_dup'))
+
+        # Drop _dup columns — keep the first file's version for every duplicate
+        dup_cols = [c for c in merged.columns if c.endswith('_dup')]
+        if dup_cols:
+            print(f"[MERGE] Dropping duplicate columns (keeping first file's version): {dup_cols}")
+            merged.drop(columns=dup_cols, inplace=True)
 
     merged = merged.sort_values(merge_keys, ignore_index=True)
     return merged
 
 
-def export_to_file(df, path):
+def export_to_file(df, path, formulas=None, source_df=None):
     """
-    Export DataFrame to Excel or CSV.
+    Export results to Excel.
+
+    Sheet layout:
+        - "Results": full computed DataFrame (ID, time, all variables).
+        - One sheet per mean formula: unique group combinations and their mean value.
+          Sheet name = variable name (truncated to 31 chars for Excel limit).
 
     Args:
-        df: pandas DataFrame to export.
-        path: output file path (.xlsx or .csv).
+        df: Computed result DataFrame (ID, time, all computed vars).
+        path: Output .xlsx file path.
+        formulas: List of formula dicts; used to build per-mean summary sheets.
+        source_df: Original merged DataFrame used to compute group summaries.
     """
-    if path.endswith('.csv'):
-        df.to_csv(path, index=False, encoding='utf-8-sig')
-    else:
-        df.to_excel(path, index=False, engine='xlsxwriter')
+    with pd.ExcelWriter(path, engine='xlsxwriter') as writer:
+        df.to_excel(writer, sheet_name='Results', index=False)
+
+        if formulas and source_df is not None:
+            for f in formulas:
+                if f.get('type') != 'mean':
+                    continue
+                mean_var = f['mean_var']
+                groups = f['mean_groups']
+                var_name = f['name']
+                try:
+                    summary = (
+                        source_df.groupby(groups, dropna=False)[mean_var]
+                        .mean()
+                        .reset_index()
+                        .rename(columns={mean_var: var_name})
+                    )
+                    sheet_name = var_name[:31]
+                    summary.to_excel(writer, sheet_name=sheet_name, index=False)
+                    print(f"[EXPORT] Summary sheet '{sheet_name}' written ({len(summary)} rows)")
+                except Exception as e:
+                    print(f"[EXPORT] Could not build summary for {var_name}: {e}")
