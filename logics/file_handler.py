@@ -36,7 +36,20 @@ def load_individual_files(file_paths, progress_callback=None):
         filename = path.split('\\')[-1] if '\\' in path else path.split('/')[-1]
         
         if path.endswith('.csv'):
-            df_temp = pd.read_csv(path)
+            # Try multiple encodings to handle international characters
+            encodings = ['utf-8', 'utf-8-sig', 'latin-1', 'cp1252', 'iso-8859-1']
+            df_temp = None
+            
+            for enc in encodings:
+                try:
+                    df_temp = pd.read_csv(path, encoding=enc)
+                    print(f"[DEBUG] {filename} loaded with encoding: {enc}")
+                    break
+                except (UnicodeDecodeError, LookupError):
+                    continue
+            
+            if df_temp is None:
+                raise ValueError(f"Could not load {filename} with any supported encoding")
         else:
             df_temp = pd.read_excel(path)
         
