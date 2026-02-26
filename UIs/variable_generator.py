@@ -71,7 +71,7 @@ class VariableGenerator:
         tk.Label(frame_main, text="• Math: Ln(Revenue(x)) ** 2, sqrt(Cost(x)), exp(Rate(x))", fg="gray").grid(
             row=6, column=0, columnspan=4, sticky='w', padx=20,
         )
-        tk.Label(frame_main, text="• Util: abs(), round() | Log: log() [natural log/ln], Ln(), log10(), log2() | Exp: exp()", fg="gray").grid(
+        tk.Label(frame_main, text="• Util: abs(), round() | Log: log() [base 10], Ln() [natural], log10(), log2() | Exp: exp()", fg="gray").grid(
             row=7, column=0, columnspan=4, sticky='w', padx=20,
         )
         tk.Label(frame_main, text="• Trig: sin(), cos(), tan(), pow(x,y) | Conditional: IF(cond, true, false)", fg="gray").grid(

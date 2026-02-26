@@ -321,7 +321,7 @@ def _evaluate_single_row(formula_expr, df, row_idx, id_col=None, time_col=None):
 
     Supported functions:
         - Conditional: IF(condition, value_true, value_false)
-        - Math: log(x), Ln(x), log10(x), log2(x), exp(x), sqrt(x), sin(x), cos(x), tan(x), pow(x, y)
+        - Math: log(x) [base 10], Ln(x) [natural], log10(x), log2(x), exp(x), sqrt(x), sin(x), cos(x), tan(x), pow(x, y)
         - Utility: abs(x), round(x)
         - Operators: +, -, *, /, ** (exponentiation)
 
@@ -424,8 +424,8 @@ def _evaluate_single_row(formula_expr, df, row_idx, id_col=None, time_col=None):
         except OverflowError:
             raise _SafeMathError(f"exp({x}) overflowed")
 
-    local_ns['log'] = safe_log
-    local_ns['Ln'] = safe_log  # Excel Ln() = natural log
+    local_ns['log'] = safe_log10  # Excel log() = base 10
+    local_ns['Ln'] = safe_log    # Excel Ln() = natural log
     local_ns['log10'] = safe_log10
     local_ns['log2'] = safe_log2
     local_ns['exp'] = safe_exp
