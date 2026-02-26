@@ -309,13 +309,13 @@ def _evaluate_single_row(formula_expr, df, row_idx, id_col=None, time_col=None):
 
     Supported functions:
         - Conditional: IF(condition, value_true, value_false)
-        - Math: log(x), log10(x), log2(x), exp(x), sqrt(x), sin(x), cos(x), tan(x), pow(x, y)
+        - Math: log(x), Ln(x), log10(x), log2(x), exp(x), sqrt(x), sin(x), cos(x), tan(x), pow(x, y)
         - Utility: abs(x), round(x)
         - Operators: +, -, *, /, ** (exponentiation)
 
     Examples:
         - IF(A(x+1) == A(x), B(x), 0)
-        - log(Revenue(x)) ** 2 + sqrt(Cost(x))
+        - Ln(Revenue(x)) ** 2 + sqrt(Cost(x))
         - round(abs(Profit(x-1)) / Revenue(x), 2)
         - IF(exp(GrowthRate(x)) > 1.5, sin(Price(x)) + cos(Price(x+1)), 0)
 
@@ -382,7 +382,7 @@ def _evaluate_single_row(formula_expr, df, row_idx, id_col=None, time_col=None):
     
     # Math functions with safety checks — raise _SafeMathError to stop evaluation cleanly
     def safe_log(x):
-        """Natural log; returns None for x <= 0 or non-finite input."""
+        """Natural log (log base e / ln); returns error for x <= 0 or non-finite input."""
         if x is None or (isinstance(x, float) and not math.isfinite(x)) or x <= 0:
             raise _SafeMathError(f"log({x}) is undefined")
         return math.log(float(x))
@@ -413,6 +413,7 @@ def _evaluate_single_row(formula_expr, df, row_idx, id_col=None, time_col=None):
             raise _SafeMathError(f"exp({x}) overflowed")
 
     local_ns['log'] = safe_log
+    local_ns['Ln'] = safe_log  # Excel Ln() = natural log
     local_ns['log10'] = safe_log10
     local_ns['log2'] = safe_log2
     local_ns['exp'] = safe_exp
