@@ -65,20 +65,20 @@ def compute_variables(df, formulas, id_col, time_col, progress_callback=None):
                              stdev_groups=stdev_groups)
 
         if f.get('type') == 'mean':
-            result_df[formula_name] = _compute_mean(context_df, f, time_col)
+            result_df[formula_name] = _sanitize_result(_compute_mean(context_df, f, time_col))
         elif f.get('type') == 'stdev':
-            result_df[formula_name] = _compute_stdev(context_df, f, time_col)
+            result_df[formula_name] = _sanitize_result(_compute_stdev(context_df, f, time_col))
         elif _is_row_formula(f['expression']):
             # Row-by-row formula with Column(x) syntax (parallel groups)
-            result_df[formula_name] = _compute_row_formula_parallel(
+            result_df[formula_name] = _sanitize_result(_compute_row_formula_parallel(
                 context_df, f['expression'], id_col, time_col
-            )
+            ))
         else:
             # Regular pandas eval expression (parallel chunks)
             expr = f['expression']
-            result_df[formula_name] = _compute_eval_formula_parallel(
+            result_df[formula_name] = _sanitize_result(_compute_eval_formula_parallel(
                 context_df, expr
-            )
+            ))
         
         computed_vars.append(formula_name)
 
@@ -300,6 +300,18 @@ class _SafeMathError(Exception):
     pass
 
 
+def _sanitize_result(series):
+    """
+    Replace inf and nan values with None in a pandas Series.
+    
+    Converts inf, -inf, and nan to None so they don't appear in Excel output.
+    """
+    result = series.copy()
+    result = result.replace([np.inf, -np.inf], None)
+    result = result.where(pd.notna(result), None)
+    return result
+
+
 def _evaluate_single_row(formula_expr, df, row_idx, id_col=None, time_col=None):
     """
     Evaluate formula for a single row.
@@ -435,7 +447,10 @@ def _evaluate_single_row(formula_expr, df, row_idx, id_col=None, time_col=None):
         if result is None:
             return None
         if isinstance(result, (int, float, np.integer, np.floating)):
-            if not math.isfinite(float(result)):
+            result_float = float(result)
+            # Check for inf, -inf, or nan
+            if not math.isfinite(result_float):
+                print(f"Non-finite result ({result_float}) at row {row_idx} -> None")
                 return None
         return result
     except (_SafeMathError, ZeroDivisionError, FloatingPointError) as e:
