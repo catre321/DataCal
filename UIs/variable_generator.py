@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox, scrolledtext
 from UIs.expression_builder import ExpressionBuilderDialog
 from UIs.mean_variable_dialog import MeanVariableDialog
+from UIs.stdev_variable_dialog import StdevVariableDialog
 
 
 class VariableGenerator:
@@ -81,6 +82,7 @@ class VariableGenerator:
         action_frame.pack(pady=15)
         ttk.Button(action_frame, text="Thêm biến", command=self._add_variable).pack(side='left', padx=10)
         ttk.Button(action_frame, text="Add Mean Variable...", command=self._open_mean_dialog).pack(side='left', padx=10)
+        ttk.Button(action_frame, text="Add STDEV.S Variable...", command=self._open_stdev_dialog).pack(side='left', padx=10)
 
         # Created variables section
         tk.Label(self.root, text="Các biến đã tạo (Available for chaining):", font=("Arial", 10, "bold")).pack(pady=(10, 5))
@@ -170,6 +172,38 @@ class VariableGenerator:
             )
             return
 
+        if formula.get('type') == 'stdev':
+            # Remove and re-open stdev dialog pre-filled; re-insert at same position on confirm
+            self.formula_list.delete(idx)
+            self.model.formulas.pop(idx)
+            self._update_created_vars_display()
+
+            def on_apply(name, stdev_var, stdev_groups):
+                if stdev_groups:
+                    expr = f"stdev({stdev_var}) by {', '.join(stdev_groups)}"
+                else:
+                    expr = f"stdev({stdev_var})"
+                
+                new_formula = {
+                    'name': name,
+                    'expression': expr,
+                    'type': 'stdev',
+                    'stdev_var': stdev_var,
+                    'stdev_groups': stdev_groups,
+                }
+                self.model.formulas.insert(idx, new_formula)
+                self.formula_list.insert(idx, f"{name} = {expr}")
+                self._update_created_vars_display()
+
+            StdevVariableDialog(
+                self.root,
+                self.model.available_vars,
+                self.model.id_col,
+                on_apply=on_apply,
+                initial_values=formula,
+            )
+            return
+
         # Regular formula – load into text fields
         self.entry_name.delete(0, tk.END)
         self.entry_name.insert(0, formula['name'])
@@ -220,6 +254,32 @@ class VariableGenerator:
             self._update_created_vars_display()
 
         MeanVariableDialog(
+            self.root,
+            self.model.available_vars,
+            self.model.id_col,
+            on_apply=on_apply,
+        )
+
+    # ── STDEV.S ──────────────────────────────────────────────
+
+    def _open_stdev_dialog(self):
+        def on_apply(name, stdev_var, stdev_groups):
+            if stdev_groups:
+                expr = f"stdev({stdev_var}) by {', '.join(stdev_groups)}"
+            else:
+                expr = f"stdev({stdev_var})"
+            
+            self.model.formulas.append({
+                'name': name,
+                'expression': expr,
+                'type': 'stdev',
+                'stdev_var': stdev_var,
+                'stdev_groups': stdev_groups,
+            })
+            self.formula_list.insert(tk.END, f"{name} = {expr}")
+            self._update_created_vars_display()
+
+        StdevVariableDialog(
             self.root,
             self.model.available_vars,
             self.model.id_col,

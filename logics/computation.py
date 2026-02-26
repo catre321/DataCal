@@ -44,18 +44,30 @@ def compute_variables(df, formulas, id_col, time_col, progress_callback=None):
         for var_name in computed_vars:
             context_df[var_name] = result_df[var_name]
         
-        # Resolve mean type — also detect by expression pattern as fallback
+        # Resolve formula type — also detect by expression pattern as fallback
         # (handles edge case where formula dict was re-created without the type field)
-        if f.get('type') != 'mean':
+        if f.get('type') not in ('mean', 'stdev'):
             m = re.match(r'^\s*mean\s*\((.+?)\)\s*by\s*(.+)$', f.get('expression', ''))
             if m:
                 print(f"[WARN] Formula '{formula_name}' missing type field; detected as mean from expression.")
                 f = dict(f, type='mean',
                          mean_var=m.group(1).strip(),
                          mean_groups=[g.strip() for g in m.group(2).split(',')])
+            else:
+                # Try to detect stdev pattern
+                m = re.match(r'^\s*stdev\s*\((.+?)\)(?:\s*by\s*(.+))?$', f.get('expression', ''))
+                if m:
+                    print(f"[WARN] Formula '{formula_name}' missing type field; detected as stdev from expression.")
+                    groups_str = m.group(2)
+                    stdev_groups = [g.strip() for g in groups_str.split(',')] if groups_str else []
+                    f = dict(f, type='stdev',
+                             stdev_var=m.group(1).strip(),
+                             stdev_groups=stdev_groups)
 
         if f.get('type') == 'mean':
             result_df[formula_name] = _compute_mean(context_df, f, time_col)
+        elif f.get('type') == 'stdev':
+            result_df[formula_name] = _compute_stdev(context_df, f, time_col)
         elif _is_row_formula(f['expression']):
             # Row-by-row formula with Column(x) syntax (parallel groups)
             result_df[formula_name] = _compute_row_formula_parallel(
@@ -86,6 +98,28 @@ def _compute_mean(df, formula, time_col):
 
     print(f"[MEAN] Computing mean({mean_var}) grouped by {groups}")
     return df.groupby(groups, dropna=False)[mean_var].transform('mean')
+
+
+def _compute_stdev(df, formula, time_col):
+    """
+    Compute a grouped STDEV.S (sample standard deviation) variable and return the result series.
+
+    - If stdev_groups is specified: compute std dev per group
+    - If stdev_groups is empty: compute std dev across entire column (ungrouped)
+    - Null/NaN values are skipped in calculation (like Excel STDEV.S)
+    - Uses ddof=1 for sample standard deviation (divides by n-1, not n)
+    """
+    stdev_var = formula['stdev_var']
+    groups = formula.get('stdev_groups', [])
+
+    if groups:
+        print(f"[STDEV] Computing stdev({stdev_var}) grouped by {groups}")
+        return df.groupby(groups, dropna=False)[stdev_var].transform(lambda x: x.std(ddof=1))
+    else:
+        # Ungrouped: compute std dev across entire column
+        print(f"[STDEV] Computing ungrouped stdev({stdev_var})")
+        stdev_value = df[stdev_var].std(ddof=1)
+        return pd.Series([stdev_value] * len(df), index=df.index)
 
 
 def _is_row_formula(expr):
